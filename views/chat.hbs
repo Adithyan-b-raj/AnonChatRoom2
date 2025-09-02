@@ -42,8 +42,19 @@
     
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
-        let username = '';
+        // Configure Socket.IO with better reconnection settings
+        const socket = io({
+            autoConnect: false,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 10,
+            timeout: 20000,
+            forceNew: true
+        });
+        
+        let username = localStorage.getItem('chatUsername') || '';
+        let isConnected = false;
+        let hasJoinedChat = false;
         
         const usernameModal = document.getElementById('usernameModal');
         const chatContainer = document.getElementById('chatContainer');
@@ -59,8 +70,15 @@
         let typingTimer;
         let isTyping = false;
         
-        // Focus username input
-        usernameInputField.focus();
+        // Check if user already has a saved username
+        if (username) {
+            usernameInputField.value = username;
+            // Auto-join if returning user
+            joinChat();
+        } else {
+            // Focus username input for new users
+            usernameInputField.focus();
+        }
         
         // Join chat function
         function joinChat() {
@@ -71,14 +89,20 @@
             }
             
             username = enteredUsername;
+            // Save username to localStorage for persistence
+            localStorage.setItem('chatUsername', username);
             currentUsernameSpan.textContent = `Logged in as: ${username}`;
             
             // Hide modal and show chat
             usernameModal.style.display = 'none';
             chatContainer.style.display = 'flex';
             
-            // Join the chat
-            socket.emit('join-chat', { username });
+            // Connect and join the chat
+            if (!socket.connected) {
+                socket.connect();
+            }
+            
+            hasJoinedChat = true;
             
             // Focus message input
             messageInput.focus();
@@ -91,6 +115,75 @@
         usernameInputField.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 joinChat();
+            }
+        });
+        
+        // Socket connection events
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            isConnected = true;
+            
+            // Auto-rejoin chat if we were previously connected
+            if (hasJoinedChat && username) {
+                socket.emit('join-chat', { username });
+            }
+            
+            // Hide any reconnection messages
+            const reconnectMsg = document.querySelector('.reconnect-message');
+            if (reconnectMsg) {
+                reconnectMsg.remove();
+            }
+        });
+        
+        socket.on('disconnect', (reason) => {
+            console.log('Disconnected from server:', reason);
+            isConnected = false;
+            
+            // Show reconnection message if it was unexpected
+            if (hasJoinedChat && reason !== 'io client disconnect') {
+                showReconnectMessage();
+            }
+        });
+        
+        socket.on('reconnect', () => {
+            console.log('Reconnected to server');
+            if (hasJoinedChat && username) {
+                socket.emit('join-chat', { username });
+            }
+        });
+        
+        function showReconnectMessage() {
+            // Remove any existing reconnect message
+            const existingMsg = document.querySelector('.reconnect-message');
+            if (existingMsg) {
+                existingMsg.remove();
+            }
+            
+            const reconnectDiv = document.createElement('div');
+            reconnectDiv.className = 'reconnect-message';
+            reconnectDiv.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #ff6b6b;
+                    color: white;
+                    padding: 10px 15px;
+                    border-radius: 5px;
+                    z-index: 1001;
+                    font-size: 14px;
+                ">
+                    Reconnecting to chat...
+                </div>
+            `;
+            document.body.appendChild(reconnectDiv);
+        }
+        
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && hasJoinedChat && !socket.connected) {
+                // Reconnect when page becomes visible again
+                socket.connect();
             }
         });
         
@@ -201,9 +294,26 @@
             }, 1000);
         });
         
-        // Handle page unload
+        // Handle page focus/blur for mobile apps
+        window.addEventListener('focus', () => {
+            if (hasJoinedChat && !socket.connected) {
+                socket.connect();
+            }
+        });
+        
+        // Keep connection alive with periodic ping
+        setInterval(() => {
+            if (socket.connected && hasJoinedChat) {
+                socket.emit('ping');
+            }
+        }, 30000); // Ping every 30 seconds
+        
+        // Only disconnect on actual page unload, not background
         window.addEventListener('beforeunload', () => {
-            socket.disconnect();
+            // Don't force disconnect - let Socket.IO handle it naturally
+            if (isTyping) {
+                socket.emit('typing', { isTyping: false });
+            }
         });
     </script>
 </body>

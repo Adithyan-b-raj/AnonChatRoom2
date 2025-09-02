@@ -5,7 +5,12 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  allowUpgrades: true
+});
 
 // Set up Handlebars as view engine
 app.set('view engine', 'hbs');
@@ -81,20 +86,34 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
+  // Handle ping to keep connection alive
+  socket.on('ping', () => {
+    socket.emit('pong');
+  });
+
+  // Handle disconnection with delay for reconnection
+  socket.on('disconnect', (reason) => {
     const user = activeUsers.get(socket.id);
     if (user) {
-      // Notify others about user leaving
-      socket.broadcast.emit('user-left', {
-        message: `${user.username} left the chat`,
-        timestamp: new Date().toLocaleTimeString()
-      });
+      console.log(`User ${user.username} disconnected:`, reason);
       
+      // Delay removal to allow for quick reconnections
+      setTimeout(() => {
+        // Check if user reconnected during delay
+        if (!activeUsers.has(socket.id)) {
+          // User didn't reconnect, notify others
+          socket.broadcast.emit('user-left', {
+            message: `${user.username} left the chat`,
+            timestamp: new Date().toLocaleTimeString()
+          });
+          
+          // Update user count
+          io.emit('user-count', activeUsers.size);
+        }
+      }, 5000); // 5 second delay for reconnection
+      
+      // Remove user immediately but allow rejoin
       activeUsers.delete(socket.id);
-      
-      // Update user count
-      io.emit('user-count', activeUsers.size);
     }
     console.log('User disconnected:', socket.id);
   });
