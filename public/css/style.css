@@ -256,6 +256,35 @@ header p {
     border-radius: 25px;
 }
 
+/* Username modal styles */
+.username-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.username-form {
+    background: white;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    max-width: 400px;
+    width: 90%;
+}
+
+.username-form h2 {
+    margin-bottom: 25px;
+    text-align: center;
+    color: #333;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .container {
@@ -268,6 +297,10 @@ header p {
     
     .join-form {
         padding: 20px;
+    }
+    
+    .username-form {
+        padding: 30px 20px;
     }
     
     .chat-header {

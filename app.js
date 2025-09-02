@@ -14,51 +14,37 @@ app.set('views', path.join(__dirname, 'views'));
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Store active users and rooms
+// Store active users and messages for single room
 const activeUsers = new Map();
-const chatRooms = new Map();
+const messages = [];
 
 // Routes
 app.get('/', (req, res) => {
-  res.render('index');
-});
-
-app.get('/room/:roomId', (req, res) => {
-  const roomId = req.params.roomId;
-  res.render('chat', { roomId });
+  res.render('chat');
 });
 
 // Socket.io for real-time chat
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // Join a chat room
-  socket.on('join-room', (data) => {
-    const { roomId, username } = data;
-    socket.join(roomId);
+  // Join the chat
+  socket.on('join-chat', (data) => {
+    const { username } = data;
     
     // Store user info
-    activeUsers.set(socket.id, { username, roomId });
-    
-    // Initialize room if it doesn't exist
-    if (!chatRooms.has(roomId)) {
-      chatRooms.set(roomId, { users: new Set(), messages: [] });
-    }
-    
-    const room = chatRooms.get(roomId);
-    room.users.add(socket.id);
+    activeUsers.set(socket.id, { username });
     
     // Notify others about new user
-    socket.to(roomId).emit('user-joined', {
+    socket.broadcast.emit('user-joined', {
       message: `${username} joined the chat`,
       timestamp: new Date().toLocaleTimeString()
     });
     
     // Send existing messages to new user
-    socket.emit('previous-messages', room.messages);
+    socket.emit('previous-messages', messages);
     
     // Update user count
-    io.to(roomId).emit('user-count', room.users.size);
+    io.emit('user-count', activeUsers.size);
   });
 
   // Handle new messages
@@ -72,18 +58,15 @@ io.on('connection', (socket) => {
         id: Date.now()
       };
       
-      // Store message in room
-      const room = chatRooms.get(user.roomId);
-      if (room) {
-        room.messages.push(messageData);
-        // Keep only last 100 messages
-        if (room.messages.length > 100) {
-          room.messages.shift();
-        }
+      // Store message
+      messages.push(messageData);
+      // Keep only last 100 messages
+      if (messages.length > 100) {
+        messages.shift();
       }
       
-      // Broadcast to all users in the room
-      io.to(user.roomId).emit('message', messageData);
+      // Broadcast to all users
+      io.emit('message', messageData);
     }
   });
 
@@ -91,7 +74,7 @@ io.on('connection', (socket) => {
   socket.on('typing', (data) => {
     const user = activeUsers.get(socket.id);
     if (user) {
-      socket.to(user.roomId).emit('user-typing', {
+      socket.broadcast.emit('user-typing', {
         username: user.username,
         isTyping: data.isTyping
       });
@@ -102,26 +85,16 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const user = activeUsers.get(socket.id);
     if (user) {
-      const room = chatRooms.get(user.roomId);
-      if (room) {
-        room.users.delete(socket.id);
-        
-        // Notify others about user leaving
-        socket.to(user.roomId).emit('user-left', {
-          message: `${user.username} left the chat`,
-          timestamp: new Date().toLocaleTimeString()
-        });
-        
-        // Update user count
-        io.to(user.roomId).emit('user-count', room.users.size);
-        
-        // Clean up empty rooms
-        if (room.users.size === 0) {
-          chatRooms.delete(user.roomId);
-        }
-      }
+      // Notify others about user leaving
+      socket.broadcast.emit('user-left', {
+        message: `${user.username} left the chat`,
+        timestamp: new Date().toLocaleTimeString()
+      });
       
       activeUsers.delete(socket.id);
+      
+      // Update user count
+      io.emit('user-count', activeUsers.size);
     }
     console.log('User disconnected:', socket.id);
   });

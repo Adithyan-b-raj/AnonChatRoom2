@@ -23,21 +23,21 @@ Preferred communication style: Simple, everyday language.
 
 ### Core Features
 - **Anonymous Chat**: No registration required, users choose any username
-- **Room-Based Chat**: Users can join specific chat rooms via URL parameters or create random rooms
-- **User Management**: Active user tracking with username and room association
-- **Message Handling**: Real-time message broadcasting within chat rooms with message history
+- **Single Room Chat**: One global chat room for all users
+- **User Management**: Active user tracking with username association
+- **Message Handling**: Real-time message broadcasting to all users with message history
 - **Typing Indicators**: Real-time typing status display
 - **Session Management**: Socket-based user sessions with automatic cleanup
+- **Username Modal**: Built-in username selection on first visit
 
 ### Data Management
-- **Active Users**: Map storing socket ID to user information (username, room ID)
-- **Chat Rooms**: Map storing room data including user sets and message histories
+- **Active Users**: Map storing socket ID to user information (username only)
+- **Global Messages**: Array storing message history for the single chat room
 - **Session Storage**: Temporary in-memory storage (data resets on server restart)
-- **Message History**: Last 100 messages per room stored in memory
+- **Message History**: Last 100 messages stored in memory
 
 ### Routing Structure
-- **Homepage Route** (`/`): Landing page for joining or creating chat rooms
-- **Chat Room Route** (`/room/:roomId`): Dynamic route for specific chat rooms
+- **Homepage Route** (`/`): Direct access to the single chat room with username modal
 - **Static Assets**: Automatic serving of CSS, JavaScript, and other static files
 
 ### Deployment Configuration

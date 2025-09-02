@@ -3,18 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Room {{roomId}}</title>
+    <title>Anonymous Chat</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div class="chat-container">
+    <div id="usernameModal" class="username-modal">
+        <div class="username-form">
+            <h2>Join Anonymous Chat</h2>
+            <div class="form-group">
+                <label for="usernameInput">Choose your username:</label>
+                <input type="text" id="usernameInput" placeholder="Enter your username" maxlength="20" required>
+            </div>
+            <button id="joinChatBtn" class="btn-primary">Join Chat</button>
+        </div>
+    </div>
+
+    <div id="chatContainer" class="chat-container" style="display: none;">
         <header class="chat-header">
             <div class="room-info">
-                <h2>Room: {{roomId}}</h2>
+                <h2>Anonymous Chat</h2>
                 <span id="userCount">0 users online</span>
             </div>
             <div class="controls">
-                <button id="leaveBtn" class="btn-secondary">Leave Room</button>
+                <span id="currentUsername"></span>
             </div>
         </header>
         
@@ -32,21 +43,56 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const roomId = '{{roomId}}';
-        const username = sessionStorage.getItem('username') || 'Anonymous';
+        let username = '';
         
+        const usernameModal = document.getElementById('usernameModal');
+        const chatContainer = document.getElementById('chatContainer');
+        const usernameInputField = document.getElementById('usernameInput');
+        const joinChatBtn = document.getElementById('joinChatBtn');
+        const currentUsernameSpan = document.getElementById('currentUsername');
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const userCountSpan = document.getElementById('userCount');
         const typingIndicator = document.getElementById('typingIndicator');
-        const leaveBtn = document.getElementById('leaveBtn');
         
         let typingTimer;
         let isTyping = false;
         
-        // Join the room
-        socket.emit('join-room', { roomId, username });
+        // Focus username input
+        usernameInputField.focus();
+        
+        // Join chat function
+        function joinChat() {
+            const enteredUsername = usernameInputField.value.trim();
+            if (!enteredUsername) {
+                alert('Please enter a username');
+                return;
+            }
+            
+            username = enteredUsername;
+            currentUsernameSpan.textContent = `Logged in as: ${username}`;
+            
+            // Hide modal and show chat
+            usernameModal.style.display = 'none';
+            chatContainer.style.display = 'flex';
+            
+            // Join the chat
+            socket.emit('join-chat', { username });
+            
+            // Focus message input
+            messageInput.focus();
+        }
+        
+        // Join chat on button click
+        joinChatBtn.addEventListener('click', joinChat);
+        
+        // Join chat on Enter key
+        usernameInputField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinChat();
+            }
+        });
         
         // Listen for messages
         socket.on('message', (data) => {
@@ -155,20 +201,10 @@
             }, 1000);
         });
         
-        // Leave room
-        leaveBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to leave this chat room?')) {
-                window.location.href = '/';
-            }
-        });
-        
         // Handle page unload
         window.addEventListener('beforeunload', () => {
             socket.disconnect();
         });
-        
-        // Focus message input
-        messageInput.focus();
     </script>
 </body>
 </html>
